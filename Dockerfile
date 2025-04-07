@@ -35,4 +35,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE ${PORT:-8000}
 
 # Run the application with dynamic port
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
