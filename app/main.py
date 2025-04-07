@@ -71,7 +71,24 @@ async def startup_event():
     renderer.start()
     storage_service.start()
     
-    # Set up ngrok with the static domain
+    # Check if running on Railway
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("PORT") == "8080":
+        # We're on Railway - use Railway URL instead of ngrok
+        logger.info("Running on Railway - skipping ngrok setup")
+        railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+        if railway_domain:
+            railway_url = f"https://{railway_domain}"
+            logger.info(f"Application URL: {railway_url}")
+            
+            # Set a BASE_URL in settings
+            settings.BASE_URL = railway_url
+            
+            # Update storage service with base URL
+            if hasattr(storage_service, 'set_base_url'):
+                storage_service.set_base_url(railway_url)
+        return  # Skip ngrok setup completely
+    
+    # Only proceed with ngrok setup in local development
     ngrok_auth_token = os.getenv("NGROK_AUTHTOKEN") or settings.NGROK_AUTHTOKEN
     if ngrok_auth_token:
         logger.info("Setting up ngrok tunnel...")
@@ -93,6 +110,7 @@ async def startup_event():
             # Update the NGROK_BASE_URL environment variable and settings
             os.environ["NGROK_BASE_URL"] = tunnel_url
             settings.NGROK_BASE_URL = tunnel_url
+            settings.BASE_URL = tunnel_url  # Also set BASE_URL for consistency
             logger.info(f"Updated NGROK_BASE_URL to: {tunnel_url}")
             
             # Update storage service with base URL if needed
@@ -112,6 +130,7 @@ async def startup_event():
                 # Update the NGROK_BASE_URL environment variable and settings
                 os.environ["NGROK_BASE_URL"] = tunnel_url
                 settings.NGROK_BASE_URL = tunnel_url
+                settings.BASE_URL = tunnel_url  # Also set BASE_URL for consistency
                 logger.info(f"Updated NGROK_BASE_URL to: {tunnel_url}")
                 
                 # Update storage service with base URL if needed
@@ -131,12 +150,13 @@ async def shutdown_event():
     renderer.stop()
     storage_service.stop()
     
-    # Stop ngrok
-    try:
-        ngrok.kill()
-        logger.info("Ngrok tunnel closed")
-    except Exception as e:
-        logger.error(f"Error closing ngrok tunnel: {str(e)}")
+    # Stop ngrok if we're not on Railway
+    if not (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PUBLIC_DOMAIN")):
+        try:
+            ngrok.kill()
+            logger.info("Ngrok tunnel closed")
+        except Exception as e:
+            logger.error(f"Error closing ngrok tunnel: {str(e)}")
     
     logger.info("Application shutdown")
 
@@ -191,7 +211,8 @@ async def get_job_status(job_id: str = Path(..., description="The ID of the job"
         
         # Ensure we have an absolute URL
         if not video_url.startswith(('http://', 'https://')):
-            base_url = settings.NGROK_BASE_URL or f"http://localhost:{settings.PORT}"
+            # Use BASE_URL with a fallback to NGROK_BASE_URL or localhost
+            base_url = getattr(settings, 'BASE_URL', None) or settings.NGROK_BASE_URL or f"http://localhost:{settings.PORT}"
             video_url = f"{base_url}/videos/{job_id}.mp4"
             
         result.video_url = video_url
@@ -239,9 +260,15 @@ async def options_route(path: str):
 @app.get("/healthcheck")
 async def healthcheck():
     """Healthcheck endpoint."""
+    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PUBLIC_DOMAIN"))
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "Not available")
+    
     return {
         "status": "ok",
-        "ngrok_url": settings.NGROK_BASE_URL or "Not configured"
+        "environment": "Railway" if is_railway else "Development",
+        "railway_domain": railway_domain if is_railway else None,
+        "ngrok_url": settings.NGROK_BASE_URL if not is_railway else None,
+        "base_url": getattr(settings, 'BASE_URL', None) or settings.NGROK_BASE_URL or f"http://localhost:{settings.PORT}"
     }
 
 if __name__ == "__main__":
