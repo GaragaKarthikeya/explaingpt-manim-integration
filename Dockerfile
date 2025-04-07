@@ -22,7 +22,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app/ ./app/
+COPY . .
 
 # Create output directory for videos
 RUN mkdir -p ./output_videos && chmod 777 ./output_videos
@@ -31,8 +31,8 @@ RUN mkdir -p ./output_videos && chmod 777 ./output_videos
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# Expose port
-EXPOSE 8000
+# Expose port (use PORT environment variable or default to 8000)
+EXPOSE ${PORT:-8000}
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application with dynamic port
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

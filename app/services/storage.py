@@ -15,6 +15,7 @@ class StorageService:
         self.output_dir.mkdir(exist_ok=True, parents=True)
         self.cleaner_thread = threading.Thread(target=self._cleanup_old_files, daemon=True)
         self.running = False
+        self.base_url = None
     
     def start(self):
         """Start the storage service."""
@@ -29,6 +30,11 @@ class StorageService:
             self.cleaner_thread.join(timeout=5.0)
         logger.info("Storage service stopped")
     
+    def set_base_url(self, url):
+        """Set the base URL for video URLs."""
+        self.base_url = url
+        logger.info(f"Storage service base URL set to: {url}")
+    
     def get_video_path(self, job_id: str) -> Path:
         """Get the path to a video file."""
         return self.output_dir / f"{job_id}.mp4"
@@ -40,7 +46,14 @@ class StorageService:
     
     def get_video_url(self, job_id: str) -> str:
         """Get the URL for a video file."""
-        return f"{settings.NGROK_BASE_URL}/videos/{job_id}.mp4"
+        # Use instance base_url if set, otherwise get from settings
+        base_url = self.base_url or settings.get_base_url()
+        
+        # Ensure we have a valid base URL
+        if not base_url:
+            base_url = f"http://localhost:{settings.PORT}"
+            
+        return f"{base_url}/videos/{job_id}.mp4"
     
     def _cleanup_old_files(self):
         """Periodically clean up old video files."""
