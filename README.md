@@ -1,122 +1,166 @@
 # Manim API
 
-A containerized API service that provides access to Manim's mathematical animation capabilities through simple HTTP requests.
+A containerized API service that enables generation of mathematical animations via HTTP requests using Manim.
 
 ## Overview
 
-Manim API is a web service wrapper around [Manim](https://github.com/ManimCommunity/manim), the mathematical animation engine. It allows users to generate complex mathematical animations and visualizations without having to set up Manim locally or write Python code directly.
+This API wraps [Manim](https://github.com/ManimCommunity/manim), the mathematical animation engine, into a web service. It allows you to create mathematical animations programmatically without needing to write Python code or install Manim locally.
 
 ## Features
 
-- RESTful API for creating Manim animations
+- FastAPI-based REST interface for Manim
+- Supports creation of various mathematical animations and visualizations
 - Docker containerization for easy deployment
-- Support for various Manim scene types and configurations
-- Video output in multiple formats
-- Asynchronous processing of animation requests
-
-## Project Structure
-
-```
-manim-api/
-├── app/                  # Main application code
-│   ├── api/              # API routes and handlers
-│   ├── core/             # Core functionality
-│   ├── models/           # Data models
-│   └── utils/            # Utility functions
-├── tests/                # Test suite
-├── Dockerfile            # Container definition
-├── docker-compose.yml    # Multi-container orchestration
-├── requirements.txt      # Python dependencies
-└── README.md             # This documentation
-```
+- Asynchronous job processing with status tracking
+- CORS support for browser-based applications
+- Optional ngrok tunnel for public access
 
 ## Getting Started
 
 ### Prerequisites
 
 - Docker
-- Docker Compose (optional)
 
 ### Installation and Running
 
-#### Option 1: Using Docker Hub Image
-
-You can directly pull and run the pre-built Docker image:
+#### Option 1: Using Docker Hub Image (Recommended)
 
 ```bash
 docker pull garagakarthikeya/manim-api_backend
 docker run -p 8000:8000 garagakarthikeya/manim-api_backend
 ```
 
-The API will be available at `http://localhost:8000`
-
 #### Option 2: Using the Source Code
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/yourusername/manim-api.git
-   cd manim-api
-   ```
-
-2. Build and start the service:
-   ```bash
-   docker-compose up
-   ```
-
-3. The API will be available at `http://localhost:8000`
-
-## Usage
-
-### Example API Request
-
 ```bash
-curl -X POST http://localhost:8000/animations/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scene_type": "TextExample",
-    "properties": {
-      "text": "Hello, Manim!",
-      "color": "#FFFFFF",
-      "position": [0, 0, 0]
-    },
-    "output_format": "mp4"
-  }'
+git clone https://github.com/GaragaKarthikeya/explaingpt-manim-integration.git
+cd explaingpt-manim-integration
+docker compose up
 ```
+
+The API will be available at `http://localhost:8000`
 
 ## API Documentation
 
 ### Endpoints
 
-- `GET /health` - Check if the API is running
-- `POST /animations/create` - Create a new animation
-- `GET /animations/{id}` - Get the status of an animation
-- `GET /animations/{id}/download` - Download the generated animation
+#### 1. Generate Animation
 
-## Development
+```
+POST /generate
+```
 
-### Local Development Setup
+Creates a new animation job based on the provided prompt.
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+**Request Body:**
+```json
+{
+  "prompt": "Create a circle that appears with a pink fill",
+  "quality": "medium_quality"
+}
+```
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+**Response:**
+```json
+{
+  "job_id": "12345678-1234-5678-1234-567812345678",
+  "message": "Animation job created and queued",
+  "status": "PENDING"
+}
+```
 
-3. Run the development server:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+#### 2. Check Job Status
+
+```
+GET /status/{job_id}
+```
+
+Get the status of an animation job.
+
+**Response:**
+```json
+{
+  "job_id": "12345678-1234-5678-1234-567812345678",
+  "success": true,
+  "error": null,
+  "video_url": "http://localhost:8000/videos/12345678-1234-5678-1234-567812345678.mp4"
+}
+```
+
+#### 3. Download Video
+
+```
+GET /video/{job_id}
+```
+
+Download the rendered video file for a completed job.
+
+#### 4. Health Check
+
+```
+GET /healthcheck
+```
+
+Check if the API is running and get the ngrok URL if available.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "ngrok_url": "https://absolute-seriously-shrew.ngrok-free.app"
+}
+```
+
+### Usage Examples
+
+#### Generate an Animation
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Create a circle that grows from the center of the screen",
+    "quality": "medium_quality"
+  }'
+```
+
+#### Check Job Status
+
+```bash
+curl -X GET http://localhost:8000/status/12345678-1234-5678-1234-567812345678
+```
+
+#### Download Generated Video
+
+```bash
+curl -X GET http://localhost:8000/video/12345678-1234-5678-1234-567812345678 -o animation.mp4
+```
+
+## Advanced Configuration
+
+The API supports additional configuration through environment variables:
+
+- `NGROK_AUTHTOKEN`: To enable public access via ngrok
+- `PORT`: To change the default port (8000)
+- `APP_NAME`: To change the application name
+
+## Technical Details
+
+The service is built with:
+- FastAPI - For the API framework
+- Manim Community Edition - For animation rendering
+- Pyngrok - For optional public access
+- Docker - For containerization
+
+## Docker Hub Repository
+
+The latest Docker image is available at:
+[https://hub.docker.com/r/garagakarthikeya/manim-api_backend](https://hub.docker.com/r/garagakarthikeya/manim-api_backend)
+
+## GitHub Repository
+
+[https://github.com/GaragaKarthikeya/explaingpt-manim-integration](https://github.com/GaragaKarthikeya/explaingpt-manim-integration)
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [Manim Community](https://www.manim.community/) for the amazing animation engine
-- All contributors to this project
+MIT License
