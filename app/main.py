@@ -70,6 +70,7 @@ async def startup_event():
     # Start existing services
     renderer.start()
     storage_service.start()
+    job_queue.start()  # Start the job queue service
     
     # Set up ngrok with the static domain
     ngrok_auth_token = os.getenv("NGROK_AUTHTOKEN") or settings.NGROK_AUTHTOKEN
@@ -130,6 +131,7 @@ async def shutdown_event():
     # Stop existing services
     renderer.stop()
     storage_service.stop()
+    job_queue.stop()  # Stop the job queue service
     
     # Stop ngrok
     try:

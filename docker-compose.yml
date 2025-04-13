@@ -14,7 +14,14 @@ services:
       - RATE_LIMIT_PER_MINUTE=5
       - CACHE_EXPIRY_HOURS=24
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MAX_PARALLEL_RENDERINGS=4
     restart: unless-stopped
+    # Add support for multi-processing by increasing resources
+    deploy:
+      resources:
+        limits:
+          cpus: '0'  # Use all available CPUs
+          memory: 8G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
       interval: 30s

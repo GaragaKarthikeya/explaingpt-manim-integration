@@ -1,4 +1,5 @@
 import os
+import multiprocessing
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -7,6 +8,9 @@ class Settings(BaseSettings):
     MAX_QUEUE_SIZE: int = 10
     NGROK_BASE_URL: str = os.getenv("NGROK_BASE_URL", "")
     CACHE_EXPIRY_HOURS: int = 24
+    
+    # Multi-processing settings
+    MAX_PARALLEL_RENDERINGS: int = int(os.getenv("MAX_PARALLEL_RENDERINGS", multiprocessing.cpu_count()))
     
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 5
