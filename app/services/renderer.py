@@ -3,23 +3,23 @@ import threading
 import subprocess
 import tempfile
 import time
-from pathlib import Path
-from app.models import JobStatus, AnimationRequest
-from app.services.job_queue import job_queue
-from app.services.llm_service import gemini_service
-from app.config import settings
+import json
 import logging
 import asyncio
 import shutil
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
-import sys
-import json
+from pathlib import Path
 import google.generativeai as genai
+
+from app.models import JobStatus, AnimationRequest
+from app.services.job_queue import job_queue
+from app.services.llm_service import gemini_service
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Define worker process function outside of class to make it picklable
+# Define worker process function outside of any class (to be picklable)
 def worker_process(job_id, request_dict, output_dir, temp_dir, result_queue):
     """Worker process to render an animation."""
     try:
@@ -42,7 +42,6 @@ def worker_process(job_id, request_dict, output_dir, temp_dir, result_queue):
         worker_logger.info(f"Processing prompt: '{prompt}' with complexity level {complexity}")
         
         # Use the Gemini API directly within the worker process
-        # since we can't easily access the async gemini_service
         try:
             # Configure Gemini API
             genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -240,7 +239,7 @@ class ManimRenderer:
         # Set up a job submission thread
         self.submit_thread = threading.Thread(target=self._submit_jobs, daemon=True)
     
-    def render_animation(self, job_id, request):
+    def render_animation(self, job_id, request: AnimationRequest):
         """Add a job to the multiprocessing queue for rendering.
         
         This method is called by the JobQueue to submit jobs for rendering.
@@ -328,5 +327,50 @@ class ManimRenderer:
                 logger.exception(f"Error processing results: {str(e)}")
                 time.sleep(1)
 
-# Create a singleton instance
+    # ------------------- New Asynchronous Code Generation Methods ------------------- #
+    async def _assess_topic_complexity(self, topic: str) -> tuple[str, int]:
+        """Use Gemini to dynamically evaluate topic difficulty and suggest duration."""
+        PROMPT = (
+            "Rate the conceptual complexity of this topic for a computer science animation "
+            f"and suggest video duration (in seconds): '{topic}'\n\n"
+            "Respond ONLY in this JSON format:\n"
+            '{"complexity": "low/medium/high", "duration_seconds": int}\n'
+            "Guidelines:\n"
+            "- 'low' (2-4 min): Simple topics (e.g., linear search, basic sorting)\n"
+            "- 'medium' (5-8 min): Moderate topics (e.g., Dijkstra's, recursion)\n"
+            "- 'high' (9-15 min): Complex topics (e.g., AVL trees, dynamic programming)"
+        )
+
+        response = await gemini_service.generate_text(PROMPT)
+        try:
+            assessment = json.loads(response.strip())
+            return assessment["complexity"], assessment["duration_seconds"]
+        except Exception as e:
+            logger.error(f"Error parsing complexity assessment: {e}")
+            return "medium", 300  # Fallback default (5 min)
+    
+    def _build_manim_prompt(self, user_prompt: str, duration_sec: int) -> str:
+        """Generate a prompt that enforces duration-aware animations."""
+        return (
+            f"Generate a Manim animation explaining: '{user_prompt}'\n"
+            f"- *Video length*: Exactly {duration_sec // 60} minutes ({duration_sec} sec).\n"
+            "- *Key Requirements*:\n"
+            "  1. Adjust animation speed to fit the duration.\n"
+            "  2. Break complex steps into subtasks if needed.\n"
+            "  3. Use annotations/voiceover hints (no audio code).\n"
+            "- *Output*: ONLY Python code (no explanations)."
+        )
+    
+    async def _generate_manim_code_async(self, request: AnimationRequest) -> str:
+        """Dynamic duration-adjusted code generation."""
+        # Step 1: Let Gemini judge topic complexity and suggest duration
+        complexity, duration_sec = await self._assess_topic_complexity(request.prompt)
+        
+        # Step 2: Build a prompt with duration constraints
+        modified_prompt = self._build_manim_prompt(request.prompt, duration_sec)
+        
+        # Step 3: Generate Manim code using Gemini with the updated prompt and complexity value
+        return await gemini_service.generate_manim_code(modified_prompt, complexity)
+
+# Create a singleton instance of the renderer
 renderer = ManimRenderer()

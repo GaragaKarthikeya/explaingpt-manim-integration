@@ -7,7 +7,7 @@ import sys
 api_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000"
 
 # Test prompt
-prompt = "A circle transforming into a square and then a triangle"
+prompt = "what is the value of pi?"
 complexity = 2
 
 print(f"Sending animation request to {api_url}...")

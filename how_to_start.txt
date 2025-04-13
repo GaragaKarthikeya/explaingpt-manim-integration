@@ -1,0 +1,2 @@
+      ~/manim-api  on    main !4 ?1 
+❯ cd /home/karthikeya/manim-api && docker-compose up --build
