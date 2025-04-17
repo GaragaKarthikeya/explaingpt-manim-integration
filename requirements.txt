@@ -8,5 +8,6 @@ numpy==1.25.2
 Pillow==9.4.0
 matplotlib==3.7.3
 requests==2.31.0
-google-generativeai==0.7.0
+google-generativeai>=0.8.0
 pyngrok==6.0.0
+psutil

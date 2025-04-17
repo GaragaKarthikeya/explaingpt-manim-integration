@@ -9,7 +9,9 @@ services:
     environment:
       - NGROK_BASE_URL=${NGROK_BASE_URL}
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-      - NGROK_DOMAIN=absolute-seriously-shrew.ngrok-free.app
+      - ENABLE_NGROK=false
+      - NGROK_MAX_RETRIES=1
+      - NGROK_RETRY_DELAY=1
       - MAX_QUEUE_SIZE=10
       - RATE_LIMIT_PER_MINUTE=5
       - CACHE_EXPIRY_HOURS=24
