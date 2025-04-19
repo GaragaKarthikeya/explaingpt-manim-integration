@@ -4,7 +4,7 @@ import threading
 import logging
 import multiprocessing
 from multiprocessing import Manager
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Set
 from dataclasses import dataclass, field
 from queue import Queue
 
@@ -30,6 +30,9 @@ class JobQueue:
         self.lock = threading.Lock()
         self._running = False
         self._worker_thread = None
+        
+        # Track which jobs are already in the multiprocessing queue to avoid duplicates
+        self.mp_queued_jobs: Set[str] = set()
         
         # Multiprocessing variables
         self.mp_manager = None
@@ -68,6 +71,7 @@ class JobQueue:
             self.mp_result_queue = None
             self.mp_manager.shutdown()
             self.mp_manager = None
+            self.mp_queued_jobs.clear()  # Clear tracked jobs when shutting down
             logger.info("Multiprocessing manager stopped")
     
     def process_results(self):
@@ -81,6 +85,12 @@ class JobQueue:
                 if result and len(result) >= 3:
                     job_id, status, progress, message, error = result if len(result) >= 5 else (*result, None, None)
                     self.update_job_status(job_id, status, error)
+                    
+                    # If the job is completed or failed, remove it from the tracked set
+                    if status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+                        with self.lock:
+                            self.mp_queued_jobs.discard(job_id)
+                            
                     logger.info(f"Updated job {job_id} status to {status} from MP queue")
             except Exception as e:
                 logger.exception(f"Error processing MP result: {str(e)}")
@@ -112,9 +122,11 @@ class JobQueue:
             self.jobs[job_id] = job_info
             self.queue.put(job_id)
             
-            # Also add to multiprocessing queue if available
-            if self.mp_job_queue is not None:
+            # Only add to multiprocessing queue if available and not already queued
+            if self.mp_job_queue is not None and job_id not in self.mp_queued_jobs:
                 self.mp_job_queue.put((job_id, request))
+                self.mp_queued_jobs.add(job_id)
+                logger.info(f"Added job {job_id} to multiprocessing queue")
                 
             logger.info(f"Added job {job_id} to queue")
         
@@ -137,6 +149,13 @@ class JobQueue:
                 return False
             
             job_info = self.jobs[job_id]
+            
+            # Don't "downgrade" job status (e.g. from COMPLETED back to PROCESSING)
+            # This prevents race conditions when multiple processes handle the same job
+            if self._is_status_downgrade(job_info.status, status):
+                logger.warning(f"Ignoring status downgrade for job {job_id}: {job_info.status} -> {status}")
+                return False
+                
             job_info.status = status
             
             if status == JobStatus.PROCESSING and not job_info.started_at:
@@ -149,6 +168,18 @@ class JobQueue:
             
             logger.info(f"Updated job {job_id} status to {status}")
             return True
+    
+    def _is_status_downgrade(self, current: JobStatus, new: JobStatus) -> bool:
+        """Check if the new status is a downgrade from the current status."""
+        status_rank = {
+            JobStatus.QUEUED: 1,
+            JobStatus.PROCESSING: 2,
+            JobStatus.RENDERING: 3,
+            JobStatus.EXPORTING: 4,
+            JobStatus.COMPLETED: 5,
+            JobStatus.FAILED: 5
+        }
+        return status_rank.get(new, 0) < status_rank.get(current, 0)
     
     def _process_jobs(self):
         """Worker thread function to process jobs."""
@@ -169,6 +200,12 @@ class JobQueue:
                         continue
                     
                     job_info = self.jobs[job_id]
+                    
+                    # Check if this job is already being processed
+                    if job_info.status != JobStatus.QUEUED:
+                        logger.info(f"Job {job_id} already in processing state {job_info.status}, skipping")
+                        self.queue.task_done()
+                        continue
                 
                 # Update job status to processing
                 self.update_job_status(job_id, JobStatus.PROCESSING)
@@ -176,7 +213,7 @@ class JobQueue:
                 try:
                     # Send job to renderer
                     renderer.render_animation(job_id, job_info.request)
-                    self.update_job_status(job_id, JobStatus.COMPLETED)
+                    # Don't automatically set to completed here - the worker will update via MP queue
                 except Exception as e:
                     logger.exception(f"Error processing job {job_id}: {str(e)}")
                     self.update_job_status(job_id, JobStatus.FAILED, str(e))

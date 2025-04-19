@@ -96,6 +96,17 @@ class ResourceMonitor:
         )
 
 
+# Helper function to run async code in a new event loop
+def run_async_in_new_loop(coroutine):
+    """Run an async coroutine in a new event loop and return the result."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coroutine)
+    finally:
+        loop.close()
+
+
 # Enhanced worker process function with error recovery
 def worker_process(job_id, request_dict, output_dir, temp_dir, result_queue):
     """Worker process to render an animation."""
@@ -120,16 +131,12 @@ def worker_process(job_id, request_dict, output_dir, temp_dir, result_queue):
         worker_logger.info(f"Processing prompt: '{prompt}' with complexity level {complexity}")
         
         # Create GeminiService instance for code generation
+        # Create a fresh instance for each worker to avoid shared event loop issues
         gemini = GeminiService()
         
         try:
-            # Create an event loop for async code generation
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # Generate Manim code using our service
-            manim_code = loop.run_until_complete(gemini.generate_manim_code(prompt, complexity))
-            loop.close()
+            # Generate Manim code using synchronous API - no event loops needed
+            manim_code = gemini.generate_manim_code_sync(prompt, complexity)
             
             if not manim_code:
                 raise RuntimeError("Failed to generate valid Manim code")
@@ -184,18 +191,9 @@ def worker_process(job_id, request_dict, output_dir, temp_dir, result_queue):
                                             "Attempting to fix rendering errors", None))
                             
                             try:
-                                # Create an event loop for async recovery
-                                loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(loop)
-                                
-                                # Run the recovery process to get improved code
-                                manim_code = loop.run_until_complete(
-                                    gemini.generate_manim_code(
-                                        f"Fix this Manim code error: {error_output}\n\nOriginal prompt: {prompt}",
-                                        complexity
-                                    )
-                                )
-                                loop.close()
+                                # Use synchronous API for recovery
+                                recovery_prompt = f"Fix this Manim code error: {error_output}\n\nOriginal prompt: {prompt}"
+                                manim_code = gemini.generate_manim_code_sync(recovery_prompt, complexity)
                                 
                                 # Clean up the current temporary file before the next attempt
                                 try:

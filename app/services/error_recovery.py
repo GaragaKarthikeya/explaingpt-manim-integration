@@ -56,7 +56,16 @@ class ErrorPatterns:
             "Connection was reset, possibly due to a crash in the renderer process when handling complex LaTeX or animations.",
             
         r"Connection reset by peer":
-            "Connection was reset by peer, likely due to memory issues or process crash when handling complex animations."
+            "Connection was reset by peer, likely due to memory issues or process crash when handling complex animations.",
+            
+        r"Mobjects?.*out of frame": 
+            "Elements are positioned out of the visible frame. Use smaller multipliers for position vectors.",
+            
+        r"Mobjects?.*too large": 
+            "Elements are too large for the frame. Use smaller sizes for objects.",
+            
+        r"Camera.*frame.*width": 
+            "Issue with camera frame width. Use default camera settings rather than custom width."
     }
     
     # Add math-specific common error patterns
@@ -169,7 +178,170 @@ class CodeAnalyzer:
             if var not in var_definitions and var not in ["self", "Transform", "Create", "FadeIn", "FadeOut"]:
                 issues.append(f"Potential reference to undefined variable '{var}'")
         
+        # Check for dynamic layout management
+        if "def manage_layout" not in code and "def arrange" not in code and "auto-scale" not in code:
+            issues.append("Missing dynamic layout management function - may cause overlapping elements")
+            
+        # Check for VGroup usage with multiple objects
+        object_creations = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(?:Circle|Square|Rectangle|Triangle|Line|Arrow|Text|MathTex|Tex)\(', code)
+        if len(object_creations) > 3 and "VGroup" not in code:
+            issues.append("Multiple objects created without using VGroup for organization")
+            
+        # Check if objects are arranged with proper buffers
+        if code.count("next_to(") > 0 and not re.search(r'next_to\([^,]+,[^,]+,\s*buff\s*=', code):
+            issues.append("Using next_to() without specifying buffer size - will cause overlapping")
+            
+        # Check for boundary checks after positioning
+        if len(object_creations) > 3 and not re.search(r'if\s+[^.]+\.get_(bottom|top|left|right)\(\)', code):
+            issues.append("Multiple objects positioned without checking frame boundaries")
+        
+        # Check for scene framing and positioning issues
+        if "self.camera.frame_width" in code:
+            issues.append("Custom camera frame width detected - may cause elements to appear too wide or stretched")
+            
+        # Check for elements with excessive size
+        large_size_patterns = [
+            r'Circle\(radius\s*=\s*([0-9.]+)',
+            r'Square\(side_length\s*=\s*([0-9.]+)',
+            r'Rectangle\(width\s*=\s*([0-9.]+)',
+            r'font_size\s*=\s*([0-9.]+)'
+        ]
+        
+        for pattern in large_size_patterns:
+            for match in re.finditer(pattern, code):
+                try:
+                    size = float(match.group(1))
+                    if ('Circle' in pattern or 'Square' in pattern) and size > 2:
+                        issues.append(f"Object size too large: {match.group(0)}. Use sizes between 0.5 and 2")
+                    elif 'Rectangle' in pattern and size > 4:
+                        issues.append(f"Rectangle width too large: {match.group(0)}. Use width between 1 and 4")
+                    elif 'font_size' in pattern and size > 48:
+                        issues.append(f"Font size too large: {match.group(0)}. Use font_size between 24 and 36")
+                except (ValueError, IndexError):
+                    pass
+        
+        # Check for excessive position values
+        position_patterns = [
+            r'move_to\([^)]*([A-Z]+)\s*\*\s*([0-9.]+)',
+            r'shift\([^)]*([A-Z]+)\s*\*\s*([0-9.]+)'
+        ]
+        
+        for pattern in position_patterns:
+            for match in re.finditer(pattern, code):
+                try:
+                    multiplier = float(match.group(2))
+                    if multiplier > 3.5:
+                        issues.append(f"Position multiplier too large: {match.group(0)}. Use values between 1 and 3")
+                except (ValueError, IndexError):
+                    pass
+        
+        # Check if complex animations with multiple elements are properly organized
+        if len(object_creations) > 5 and "VGroup" not in code:
+            issues.append("Complex animation with multiple elements but not using VGroup for organization")
+        
         return issues
+        
+    @staticmethod
+    def suggest_layout_fixes(code: str) -> str:
+        """
+        Add dynamic layout management to code that's missing it.
+        
+        Args:
+            code: The Manim code to enhance
+            
+        Returns:
+            Code with added dynamic layout management
+        """
+        # If already has layout management, return as is
+        if "def manage_layout" in code or "def arrange_elements" in code:
+            return code
+            
+        # Split code into parts
+        lines = code.split('\n')
+        construct_start_index = -1
+        
+        # Find the start of the construct method
+        for i, line in enumerate(lines):
+            if "def construct(self)" in line:
+                construct_start_index = i
+                break
+                
+        if construct_start_index == -1:
+            return code  # No construct method found
+            
+        # Insert the layout management function after the construct method declaration
+        layout_function = [
+            "        # Function to manage layout and prevent overlapping",
+            "        def manage_layout(*elements, direction=RIGHT, buff=0.7):",
+            "            group = VGroup(*elements)",
+            "            group.arrange(direction, buff=buff)",
+            "            ",
+            "            # Auto-scale if elements are too large for frame",
+            "            max_width = config.frame_width - 1",
+            "            max_height = config.frame_height - 2",
+            "            if group.width > max_width:",
+            "                scale = 0.9 * max_width / group.width",
+            "                group.scale(scale)",
+            "            if group.height > max_height:",
+            "                scale = 0.9 * max_height / group.height",
+            "                group.scale(scale)",
+            "            return group",
+            ""
+        ]
+        
+        # Insert the function definition
+        modified_lines = lines[:construct_start_index+1] + layout_function + lines[construct_start_index+1:]
+        
+        return '\n'.join(modified_lines)
+    
+    @staticmethod
+    def suggest_sizing_fixes(code: str) -> str:
+        """
+        Suggest fixes for sizing issues in the code.
+        
+        Args:
+            code: The Manim code to analyze
+            
+        Returns:
+            Code with suggested size adjustments
+        """
+        modified_code = code
+        
+        # Fix camera frame width if present
+        modified_code = re.sub(
+            r'self\.camera\.frame_width\s*=\s*[0-9.]+', 
+            '# Default camera settings are better for standard animations', 
+            modified_code
+        )
+        
+        # Fix circle and square sizes
+        modified_code = re.sub(
+            r'(Circle\(radius\s*=\s*)([0-9.]+)(\))', 
+            lambda m: f"{m.group(1)}{min(1.0, float(m.group(2)) / 2.5)}{m.group(3)}" if float(m.group(2)) > 2 else m.group(0),
+            modified_code
+        )
+        
+        modified_code = re.sub(
+            r'(Square\(side_length\s*=\s*)([0-9.]+)(\))', 
+            lambda m: f"{m.group(1)}{min(2.0, float(m.group(2)) / 2)}{m.group(3)}" if float(m.group(2)) > 3 else m.group(0),
+            modified_code
+        )
+        
+        # Fix font sizes
+        modified_code = re.sub(
+            r'(font_size\s*=\s*)([0-9.]+)', 
+            lambda m: f"{m.group(1)}{min(36, float(m.group(2)) / 2)}" if float(m.group(2)) > 60 else m.group(0),
+            modified_code
+        )
+        
+        # Fix excessive positioning
+        modified_code = re.sub(
+            r'(move_to\([^)]*[A-Z]+\s*\*\s*)([0-9.]+)(\))', 
+            lambda m: f"{m.group(1)}{min(2.5, float(m.group(2)) / 1.5)}{m.group(3)}" if float(m.group(2)) > 3 else m.group(0),
+            modified_code
+        )
+        
+        return modified_code
 
 
 class ErrorRecovery:
@@ -348,10 +520,62 @@ class ErrorRecovery:
     
     def _build_recovery_prompt(self, feedback: str, original_code: str, prompt: str) -> str:
         """Build a prompt for the LLM to fix the code."""
+        # Check if we have positioning/overlap issues based on feedback
+        has_positioning_issues = any(issue in feedback.lower() for issue in [
+            "overlap", "off screen", "out of", "position", "frame_width",
+            "move_to", "shift", "next_to", "buffer", "elements"
+        ])
+        
+        has_size_issues = any(issue in feedback.lower() for issue in [
+            "too large", "too wide", "too big", "font_size", "radius", "side_length",
+            "width", "height", "scale", "stretch"
+        ])
+        
+        positioning_guidance = ""
+        if has_positioning_issues:
+            positioning_guidance = (
+                "POSITIONING AND OVERLAP FIXES NEEDED:\n"
+                "1. Remove any custom camera.frame_width settings\n"
+                "2. Use absolute positioning with move_to() - examples: obj.move_to(LEFT*2), obj.move_to(RIGHT*3+UP)\n"
+                "3. Always add buff=0.5 or greater to next_to() calls to prevent overlap\n" 
+                "4. Use proper layout techniques like:\n"
+                "   - arrange() for organizing elements in a row\n"
+                "   - arrange_in_grid() for organizing elements in a grid\n"
+                "   - VGroup() to group related elements and position them together\n"
+                "5. Use shift() to fine-tune positions: obj.shift(UP*0.5)\n"
+                "6. Remove elements when they're no longer needed\n\n"
+            )
+            
+        size_guidance = ""
+        if has_size_issues:
+            size_guidance = (
+                "ELEMENT SIZING FIXES NEEDED:\n"
+                "1. Use smaller sizes for all shapes:\n"
+                "   - Circle: radius=0.5 to 1.0 (not larger)\n" 
+                "   - Square: side_length=1.0 to 1.5 (not larger)\n"
+                "   - Rectangle: width=2.0 to 3.0, height=1.0 to 2.0\n"
+                "2. Use appropriate text sizes:\n"
+                "   - Titles: font_size=36\n"
+                "   - Regular text: font_size=24\n"
+                "   - Small labels: font_size=20\n"
+                "3. Use moderate spacing between elements (LEFT*2, RIGHT*2)\n"
+                "4. For positioning vectors, use values between 1 and 2.5\n"
+                "5. Scale down any complex diagrams to ensure they fit properly\n\n"
+            )
+        
+        # Try to apply automatic fixes to the code for sizing issues
+        improved_code = original_code
+        if has_size_issues:
+            improved_code = CodeAnalyzer.suggest_sizing_fixes(original_code)
+            if improved_code != original_code:
+                original_code = improved_code
+        
         return (
             f"You need to fix the following Manim animation code that generated errors.\n\n"
             f"ORIGINAL PROMPT: {prompt}\n\n"
             f"ERROR FEEDBACK:\n{feedback}\n\n"
+            f"{positioning_guidance}"
+            f"{size_guidance}"
             f"ORIGINAL CODE:\n```python\n{original_code}\n```\n\n"
             f"Please generate fixed code that will work correctly in Manim. "
             f"Specifically address the errors identified above. "
@@ -363,7 +587,9 @@ class ErrorRecovery:
             f"5. Always use raw strings (r prefix) for LaTeX content\n"
             f"6. Use the custom tex_template for all LaTeX elements\n"
             f"7. Replace any Code() mobjects with Text() mobjects\n"
-            f"8. Make sure all variables are defined before use\n\n"
+            f"8. Make sure all variables are defined before use\n"
+            f"9. Use proper positioning and layout to avoid overlaps and elements going off-screen\n"
+            f"10. Use appropriate sizing for all elements (keep shapes and text modest in size)\n\n"
             f"Respond with ONLY the fixed Python code, surrounded by ```python and ``` markers. No explanations."
         )
     

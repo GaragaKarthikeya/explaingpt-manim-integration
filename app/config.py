@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Gemini API settings
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     # Update to use the exact model name from list_gemini_models.py output
-    GEMINI_MODEL: str = "models/gemini-2.5-pro-exp-03-25"
+    GEMINI_MODEL: str = "models/gemini-2.0-flash"
 
     # Ngrok settings
     NGROK_AUTHTOKEN: str = os.getenv("NGROK_AUTHTOKEN", "")
