@@ -40,11 +40,19 @@ class Settings(BaseSettings):
     ENABLE_NGROK: bool = os.getenv("ENABLE_NGROK", "True").lower() in ("true", "1", "t")
     NGROK_MAX_RETRIES: int = int(os.getenv("NGROK_MAX_RETRIES", 2))
     NGROK_RETRY_DELAY: int = int(os.getenv("NGROK_RETRY_DELAY", 2))
+    NGROK_DOMAIN: str = os.getenv("NGROK_DOMAIN", "")
 
     # Error recovery settings
     ERROR_RECOVERY_ENABLED: bool = True
     ERROR_RECOVERY_MAX_RETRIES: int = 3
     ERROR_RECOVERY_SANDBOX_TIMEOUT: int = 30  # seconds
+
+    # RAG Configuration
+    RAG_INDEX_PATH: str = os.getenv("RAG_INDEX_PATH", "./data/manim_index.faiss")
+    RAG_BLOCKS_PATH: str = os.getenv("RAG_BLOCKS_PATH", "./data/manim_blocks.npy")
+    RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "true").lower() == "true"
+    RAG_MIN_SCORE: float = float(os.getenv("RAG_MIN_SCORE", "0.5"))
+    RAG_MAX_EXAMPLES: int = int(os.getenv("RAG_MAX_EXAMPLES", "3"))
 
     class Config:
         env_file = ".env"

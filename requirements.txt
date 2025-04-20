@@ -11,3 +11,9 @@ requests==2.31.0
 google-generativeai>=0.8.0
 pyngrok==6.0.0
 psutil
+ngrok
+faiss-cpu==1.7.4
+scipy>=1.10.0
+tqdm
+asyncio
+regex

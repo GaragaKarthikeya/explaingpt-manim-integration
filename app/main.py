@@ -89,13 +89,23 @@ async def startup_event():
                     # Configure ngrok
                     ngrok.set_auth_token(ngrok_auth_token)
                     
-                    # Try to connect with a random domain first (faster)
+                    # Kill any existing tunnels to prevent conflicts
+                    ngrok.kill()
+                    
+                    # Check if we have a static domain in the environment variables
+                    static_domain = os.getenv("NGROK_DOMAIN")
+                    
                     try:
-                        # Kill any existing tunnels to prevent conflicts
-                        ngrok.kill()
+                        # If we have a static domain, use it
+                        if static_domain:
+                            logger.info(f"Connecting to ngrok with static domain: {static_domain}")
+                            # Use static domain with the connect call
+                            http_tunnel = ngrok.connect(8000, domain=static_domain)
+                        else:
+                            # Otherwise connect with a random domain
+                            logger.info("Connecting to ngrok with random domain")
+                            http_tunnel = ngrok.connect(8000)
                         
-                        # Connect with random domain (faster than specific domain)
-                        http_tunnel = ngrok.connect(8000)
                         tunnel_url = http_tunnel.public_url
                         logger.info(f"Ngrok tunnel established at: {tunnel_url}")
                         

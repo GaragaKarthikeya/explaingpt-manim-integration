@@ -1,9 +1,14 @@
 import os
 import re
+import time
+import asyncio
 import logging
 import base64
 import google.generativeai as genai
 from app.config import settings
+import faiss
+import numpy as np
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +35,179 @@ class GeminiService:
 
     def _get_example_for_topic(self, topic):
         """Get a relevant example based on the topic to help guide the model."""
-        if any(word in topic.lower() for word in ['theorem', 'proof', 'pythagoras', 'geometric']):
+        if any(word in topic.lower() for word in ['vector', 'vectors', 'arrow', 'arrows', 'direction']):
+            return """Example of a vector animation with dynamic layout management:
+from manim import *
+
+class AnimationScene(Scene):
+    def construct(self):
+        # Create title
+        title = Text("Understanding Vectors", font_size=36)
+        self.play(Write(title))
+        self.play(title.animate.to_edge(UP, buff=0.5))
+        self.wait(0.5)
+        
+        # Define a coordinate system
+        axes = Axes(
+            x_range=[-3, 3, 1],
+            y_range=[-3, 3, 1],
+            axis_config={"include_tip": True, "numbers_to_exclude": [0]},
+        )
+        axes_labels = axes.get_axis_labels(x_label="x", y_label="y")
+        coord_system = VGroup(axes, axes_labels)
+        
+        # Create and display the coordinate system
+        self.play(Create(coord_system))
+        self.wait(0.5)
+        
+        # Create a vector
+        vector_1 = Arrow(axes.coords_to_point(0, 0), axes.coords_to_point(2, 1), 
+                        buff=0, color=RED, stroke_width=4)
+        vector_1_label = MathTex(r"\\vec{v}", font_size=24).next_to(vector_1.get_center(), UP+RIGHT, buff=0.1)
+        vector_group_1 = VGroup(vector_1, vector_1_label)
+        
+        # Show the vector
+        self.play(GrowArrow(vector_1))
+        self.play(Write(vector_1_label))
+        self.wait(1)
+        
+        # Create a second vector
+        vector_2 = Arrow(axes.coords_to_point(0, 0), axes.coords_to_point(1, 2), 
+                         buff=0, color=BLUE, stroke_width=4)
+        vector_2_label = MathTex(r"\\vec{w}", font_size=24).next_to(vector_2.get_center(), UP+LEFT, buff=0.1)
+        vector_group_2 = VGroup(vector_2, vector_2_label)
+        
+        # Show the second vector
+        self.play(GrowArrow(vector_2))
+        self.play(Write(vector_2_label))
+        self.wait(1)
+        
+        # Create an explanation of vector addition
+        explanation = VGroup(
+            Text("Vector Addition", font_size=28),
+            MathTex(r"\\vec{v} + \\vec{w}", font_size=24),
+        ).arrange(DOWN, buff=0.3)
+        explanation.to_edge(RIGHT, buff=0.5)
+        
+        self.play(Write(explanation))
+        self.wait(0.5)
+        
+        # Show vector addition
+        result_vector = Arrow(
+            axes.coords_to_point(0, 0), 
+            axes.coords_to_point(3, 3), 
+            buff=0, color=GREEN, stroke_width=4
+        )
+        result_label = MathTex(r"\\vec{v} + \\vec{w}", font_size=24).next_to(result_vector.get_center(), DOWN, buff=0.2)
+        result_group = VGroup(result_vector, result_label)
+        
+        # Create parallel vector for demonstration
+        parallel_v = Arrow(
+            axes.coords_to_point(0, 0),
+            axes.coords_to_point(2, 1),
+            buff=0, color=RED, stroke_width=4, stroke_opacity=0.5
+        )
+        parallel_w = Arrow(
+            axes.coords_to_point(2, 1),
+            axes.coords_to_point(3, 3),
+            buff=0, color=BLUE, stroke_width=4, stroke_opacity=0.5
+        )
+        
+        # Animate the addition
+        self.play(
+            ReplacementTransform(vector_1.copy(), parallel_v),
+            ReplacementTransform(vector_2.copy(), parallel_w)
+        )
+        self.wait(0.5)
+        self.play(GrowArrow(result_vector))
+        self.play(Write(result_label))
+        self.wait(1)
+        
+        # Create an explanation of vector scaling
+        scale_explanation = VGroup(
+            Text("Vector Scaling", font_size=28),
+            MathTex(r"2 \cdot \\vec{v}", font_size=24),
+        ).arrange(DOWN, buff=0.3)
+        scale_explanation.next_to(explanation, DOWN, buff=1)
+        
+        self.play(Write(scale_explanation))
+        self.wait(0.5)
+        
+        # Show vector scaling
+        scaled_vector = Arrow(
+            axes.coords_to_point(0, 0),
+            axes.coords_to_point(4, 2),
+            buff=0, color=YELLOW, stroke_width=4
+        )
+        scaled_label = MathTex(r"2 \cdot \\vec{v}", font_size=24).next_to(scaled_vector.get_center(), DOWN, buff=0.2)
+        scaled_group = VGroup(scaled_vector, scaled_label)
+        
+        self.play(GrowArrow(scaled_vector))
+        self.play(Write(scaled_label))
+        self.wait(1)
+        
+        # Clean up the scene
+        self.play(
+            FadeOut(parallel_v),
+            FadeOut(parallel_w),
+            FadeOut(result_group),
+            FadeOut(scaled_group)
+        )
+        self.wait(0.5)
+        
+        # Define unit vectors
+        unit_i = Arrow(
+            axes.coords_to_point(0, 0),
+            axes.coords_to_point(1, 0),
+            buff=0, color=RED, stroke_width=4
+        )
+        unit_i_label = MathTex(r"\\hat{i}", font_size=24).next_to(unit_i, DOWN, buff=0.2)
+        
+        unit_j = Arrow(
+            axes.coords_to_point(0, 0),
+            axes.coords_to_point(0, 1),
+            buff=0, color=GREEN, stroke_width=4
+        )
+        unit_j_label = MathTex(r"\\hat{j}", font_size=24).next_to(unit_j, LEFT, buff=0.2)
+        
+        unit_vectors = VGroup(unit_i, unit_i_label, unit_j, unit_j_label)
+        
+        # Show the unit vectors
+        self.play(
+            FadeOut(vector_group_1),
+            FadeOut(vector_group_2),
+            FadeOut(explanation),
+            FadeOut(scale_explanation)
+        )
+        
+        unit_explanation = Text("Unit Vectors", font_size=28).to_edge(RIGHT, buff=0.5)
+        self.play(Write(unit_explanation))
+        
+        self.play(GrowArrow(unit_i))
+        self.play(Write(unit_i_label))
+        self.play(GrowArrow(unit_j))
+        self.play(Write(unit_j_label))
+        self.wait(1)
+        
+        # Show how to represent vectors with unit vectors
+        vector_decomposition = MathTex(
+            r"\\vec{v} = 2\\hat{i} + 1\\hat{j}",
+            font_size=28
+        ).next_to(unit_explanation, DOWN, buff=0.5)
+        
+        self.play(Write(vector_decomposition))
+        self.wait(2)
+        
+        # Final animation - fade everything out
+        self.play(
+            FadeOut(unit_vectors),
+            FadeOut(coord_system),
+            FadeOut(unit_explanation),
+            FadeOut(vector_decomposition),
+            FadeOut(title)
+        )
+        self.wait(1)"""
+        elif any(word in topic.lower() for word in ['theorem', 'proof', 'pythagoras', 'geometric']):
             return """Example of a mathematical theorem animation with dynamic layout management:
 from manim import *
 
@@ -227,7 +404,7 @@ class AnimationScene(Scene):
             logger.warning(f"Code starts with explanatory text: '{first_word}'")
             return False
             
-        # Check for required elements
+        # Check for required elements - simple structural validation
         required_elements = [
             lambda c: "from manim import" in c or "import manim" in c,  # Import statement
             lambda c: "class AnimationScene" in c,  # Scene class
@@ -239,63 +416,26 @@ class AnimationScene(Scene):
             if not check(code):
                 return False
                 
-        # Try to detect common syntax errors
+        # Only perform the most basic syntax check - actual errors will be handled during rendering
         try:
-            # Check for unclosed parentheses or syntax errors
+            # Check for syntax errors by compiling the code
             compile(code, '<string>', 'exec')
-            
-            # Additional checks for common issues:
-            
-            # Check for unterminated triple quotes
-            triple_quotes = ['"""', "'''"]
-            for quote in triple_quotes:
-                if code.count(quote) % 2 != 0:
-                    logger.warning(f"Found unterminated triple quote: {quote}")
-                    return False
-            
-            # Check for lines ending with incomplete methods/properties
-            lines = code.split('\n')
-            for i, line in enumerate(lines):
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    # Check for lines ending with dots without completing the reference
-                    if line.endswith('.'):
-                        logger.warning(f"Line {i+1} ends with a dot without completing reference")
-                        return False
-                    
-                    # Check for incomplete method chains
-                    incomplete_ends = ['.animate', '.next_to', '.set_', '.get_', '.to_', 'buff=']
-                    for end in incomplete_ends:
-                        if line.endswith(end):
-                            logger.warning(f"Line {i+1} ends with incomplete method: {end}")
-                            return False
-            
-            # Check for common Manim API usage errors
-            common_manim_errors = [
-                # Check for font_size in next_to (common error seen in logs)
-                r'\.next_to\([^,)]*,[^,)]*,\s*[^,)]*font_size\s*=',
-                # Check for using numpy array methods on vector objects
-                r'vector_arrow\.get_\w+\(\)\.\w+',
-                # Check for incorrect brace usage
-                r'Brace\([^,)]*,\s*direction\s*=\s*[^UP|DOWN|LEFT|RIGHT][^,)]*\)',
-                # Check for common wrong parameter names - FIXING THIS ONE
-                r'(\.\w+\()([^)]*)(\bcolors\s*=|\bcolour\s*=)([^)]*)(\))',
-                # Check for incorrect vector handling
-                r'([^a-zA-Z0-9_])(rotate|translate|normalize|orthogonalize)(\s*\()',
-            ]
-            
-            for i, pattern in enumerate(common_manim_errors):
-                match = re.search(pattern, code)
-                if match:
-                    # Log what specifically matched to help with debugging
-                    logger.warning(f"Found common Manim API usage error with pattern {i}: {match.group(0)}")
-                    return False
-                
             return True
-            
         except SyntaxError as e:
             logger.warning(f"Syntax error in generated code: {str(e)}")
             return False
+
+    def _run_async_in_sync(self, coro):
+        """Helper method to run async code in sync context."""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(coro)
+            loop.close()
+            return result
+        except Exception as e:
+            logger.error(f"Error running async code in sync context: {str(e)}")
+            raise
 
     async def generate_manim_code(self, prompt: str, complexity) -> str:
         """Generate Manim code from a prompt using Gemini (async version)."""
@@ -314,103 +454,91 @@ class AnimationScene(Scene):
         else:
             complexity_val = int(complexity)
 
-        # Get a relevant example for complex topics
-        example = self._get_example_for_topic(prompt)
+        # Step 1: Get relevant examples using RAG
+        retrieved_context = ""
+        examples_found = False
         
-        # Build a very explicit prompt
+        if settings.RAG_ENABLED and rag_service:
+            try:
+                # Run RAG search with retry
+                for attempt in range(2):
+                    try:
+                        similar_examples = self._run_async_in_sync(
+                            rag_service.search(prompt, k=settings.RAG_MAX_EXAMPLES)
+                        )
+                        
+                        # Filter and format examples
+                        examples = [
+                            (example, score) for example, score in similar_examples
+                            if score >= settings.RAG_MIN_SCORE
+                        ]
+                        
+                        if examples:
+                            retrieved_context = "\n\n".join([
+                                f"Relevant example {i+1} (similarity: {score:.2f}):\n{example}" 
+                                for i, (example, score) in enumerate(examples)
+                            ])
+                            examples_found = True
+                            logger.info(f"Found {len(examples)} relevant examples using RAG")
+                            break
+                        
+                    except Exception as e:
+                        if attempt == 0:
+                            logger.warning(f"RAG attempt {attempt + 1} failed: {str(e)}, retrying...")
+                            time.sleep(1)  # Brief pause before retry
+                        else:
+                            raise  # Re-raise on final attempt
+                            
+            except Exception as e:
+                logger.error(f"RAG search failed: {str(e)}")
+                if settings.ERROR_RECOVERY_ENABLED:
+                    logger.info("RAG failed, falling back to template examples")
+        
+        # Get template example only if no RAG examples found
+        template_example = None
+        if not examples_found:
+            template_example = self._get_example_for_topic(prompt)
+            logger.info("Using template example as fallback")
+        
+        # Build the prompt using available examples
         code_prompt = f"""ROLE: You are a Manim Python code generator specializing in mathematical animations.
 TASK: Create a clear, step-by-step Manim animation that explains and visualizes: "{prompt}"
 Complexity level: {complexity_val}/3
 
 TECHNICAL REQUIREMENTS:
-1. Start with exactly "from manim import *"
-2. Create a class named AnimationScene that inherits from Scene
-3. Implement the construct method
-4. Use appropriate mathematical objects (MathTex, Text, geometric shapes)
-5. Break down complex concepts into clear visual steps
-6. Include descriptive comments for each major step
-7. Add appropriate wait times between animations
-8. Follow Manim best practices
+// ...existing code...
 
 DYNAMIC LAYOUT MANAGEMENT (CRITICAL):
-1. Create a helper function at the beginning of your construct method to manage layout:
-   ```python
-   def manage_layout(*elements, direction=RIGHT, buff=0.7):
-       group = VGroup(*elements)
-       group.arrange(direction, buff=buff)
-       
-       # Auto-scale if elements are too large for frame
-       max_width = config.frame_width - 1
-       max_height = config.frame_height - 2
-       if group.width > max_width:
-           scale = 0.9 * max_width / group.width
-           group.scale(scale)
-       if group.height > max_height:
-           scale = 0.9 * max_height / group.height
-           group.scale(scale)
-       return group
-   ```
-2. Use VGroup for all related elements and arrange them with proper buffers
-3. Check frame boundaries before finalizing positions: 
-   ```python
-   if some_group.get_bottom()[1] < -3.5:  # Too low
-       some_group.shift(UP * (abs(some_group.get_bottom()[1]) - 3))
-   ```
-4. Position complex element groups using the helper function:
-   ```python
-   shapes = manage_layout(square, circle, triangle, buff=0.8)
-   shapes.center()
-   ```
-5. For multiple rows of content, create them separately and position them relative to each other:
-   ```python
-   row1 = manage_layout(elem1, elem2, elem3)
-   row2 = manage_layout(elem4, elem5)
-   row2.next_to(row1, DOWN, buff=1)
-   ```
+// ...existing code...
 
 ELEMENT SIZING AND POSITIONING:
-1. Use modest sizes for elements (radius=0.5-1, side_length=1-2, font_size=24-36)
-2. For text associated with shapes, group them together:
-   ```python
-   square = Square(side_length=1.5)
-   square_label = Text("Square", font_size=24)
-   square_label.next_to(square, DOWN, buff=0.5)
-   square_group = VGroup(square, square_label)
-   ```
-3. Add elements sequentially, not all at once
-4. Always clean up elements when they're no longer needed
+// ...existing code...
 
-SYNTAX REQUIREMENTS (IMPORTANT):
-1. Make sure ALL parentheses, brackets, and braces are properly closed
-2. Ensure triple-quoted strings ('''...''' or \"""...\""") are properly closed
-3. Complete all method calls - never leave a line ending with a dot or a method name
-4. Always complete parameters on the same line or use proper line continuation with backslash
-5. When a line exceeds 80 characters, break it before operators with proper indentation
-6. Never include examples, corrected_code sections, or any non-executable code
+SYNTAX REQUIREMENTS (CRITICAL):
+// ...existing code...
+
+COMMON SYNTAX ERRORS TO AVOID:
+// ...existing code...
 
 MANIM API REQUIREMENTS:
-1. For Brace objects, only use UP, DOWN, LEFT, RIGHT for direction parameter
-2. Never use font_size parameter with next_to() method
-3. Don't try to access numpy array attributes directly - use get_center(), get_end(), etc.
-4. For vector operations, use proper methods: get_length(), get_angle(), not numpy methods
+// ...existing code...
 
 MATHEMATICAL VISUALIZATION GUIDELINES:
-- For theorems: Show step-by-step construction and proof
-- For geometric concepts: Build shapes gradually and show relationships
-- For equations: Write them step by step with clear transitions
-- Use different colors to highlight important elements
-- Add labels to clarify components
-- Use transformations to show relationships
+// ...existing code...
 
 RESPOND WITH VALID PYTHON CODE ONLY. START DIRECTLY WITH "from manim import *"
 DO NOT INCLUDE ANY EXPLANATIONS BEFORE OR AFTER THE CODE.
 DO NOT USE MARKDOWN CODE BLOCKS."""
 
-        # If we have a relevant example, add it to the prompt
-        if example:
-            code_prompt += f"\n\nHere's a similar example to follow (adapt this structure):\n{example}"
-        
-        # Track attempts
+        # Add retrieved examples if available
+        if retrieved_context:
+            code_prompt += f"\n\nHere are some relevant examples from similar animations:\n{retrieved_context}"
+
+        # Add template example if available and no good RAG examples found
+        if template_example and not retrieved_context:
+            code_prompt += f"\n\nHere's a similar example to follow (adapt this structure):\n{template_example}"
+
+        # Rest of the method remains the same
         max_attempts = 3
         current_attempt = 0
         last_error = None
@@ -428,6 +556,14 @@ START EXACTLY WITH: "from manim import *"
 DO NOT INCLUDE ANY EXPLANATORY TEXT OR CODE EXAMPLES.
 ENSURE ALL PARENTHESES AND STRINGS ARE PROPERLY CLOSED.
 NEVER LEAVE INCOMPLETE METHOD CALLS OR PARAMETERS.
+
+CRITICAL SYNTAX ISSUES TO FIX:
+- Check all parentheses balance correctly: count opening "(" and closing ")" - they must match
+- Each method call must have its own complete set of parentheses
+- Always use semicolons or new lines between separate statements
+- Never place commas between separate statements
+- If using helper methods like save_all_objects(), call them in separate statements
+- Keep each function call on its own line for clarity
 
 SCENE FRAMING ISSUES TO FIX:
 - Use default camera settings (don't set camera.frame_width)
@@ -489,5 +625,84 @@ MANIM API ERRORS TO FIX:
             logger.exception(f"Error generating text response: {str(e)}")
             raise RuntimeError(f"Failed to generate text: {str(e)}")
 
-# Create singleton instance
+class RAGService:
+    def __init__(self, index_path: str, blocks_path: str, embedding_model: str = "models/embedding-001"):
+        self.index_path = index_path
+        self.blocks_path = blocks_path
+        self.embedding_model = embedding_model
+        self.index = None
+        self.blocks = None
+        self.embeddings = genai.GenerativeModel(embedding_model)
+        self.load_index()
+    
+    def load_index(self):
+        """Load the FAISS index and code blocks."""
+        if not Path(self.index_path).exists() or not Path(self.blocks_path).exists():
+            raise FileNotFoundError("FAISS index or blocks file not found")
+            
+        self.index = faiss.read_index(self.index_path)
+        self.blocks = np.load(self.blocks_path, allow_pickle=True)
+        
+    async def search(self, query: str, k: int = 5) -> list[tuple[str, float]]:
+        """Search for relevant code examples."""
+        # Get query embedding using Gemini embeddings API
+        query_embedding = await self._get_embedding(query)
+        
+        # Search the FAISS index
+        scores, indices = self.index.search(query_embedding.reshape(1, -1), k)
+        
+        # Return results with scores
+        results = []
+        for idx, score in zip(indices[0], scores[0]):
+            if idx != -1:  # FAISS returns -1 for empty results
+                # Convert cosine similarity to a 0-1 score
+                normalized_score = (score + 1) / 2
+                if normalized_score >= settings.RAG_MIN_SCORE:
+                    results.append((self.blocks[idx], normalized_score))
+                
+        return sorted(results, key=lambda x: x[1], reverse=True)[:settings.RAG_MAX_EXAMPLES]
+        
+    async def _get_embedding(self, text: str, max_retries: int = 2) -> np.ndarray:
+        """Get embedding for text using Gemini embeddings API with retries."""
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # Get embeddings from Gemini
+                embedding = await self.embeddings.generate_embeddings(text)
+                embedding_array = np.array(embedding.values, dtype=np.float32)
+                
+                # Basic validation
+                if embedding_array.size == 0:
+                    raise ValueError("Received empty embedding array")
+                if np.isnan(embedding_array).any():
+                    raise ValueError("Embedding contains NaN values")
+                    
+                return embedding_array
+                
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Embedding generation failed (attempt {attempt + 1}/{max_retries}): {last_error}")
+                if attempt < max_retries - 1:
+                    # Wait with exponential backoff before retrying
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                
+        logger.error(f"All embedding generation attempts failed: {last_error}")
+        raise RuntimeError(f"Failed to generate embeddings after {max_retries} attempts: {last_error}")
+
+# Initialize RAG service with settings
+if settings.RAG_ENABLED:
+    try:
+        rag_service = RAGService(
+            index_path=settings.RAG_INDEX_PATH,
+            blocks_path=settings.RAG_BLOCKS_PATH
+        )
+        logger.info(f"RAG service initialized with index from {settings.RAG_INDEX_PATH}")
+    except FileNotFoundError as e:
+        logger.warning(f"Could not initialize RAG service: {str(e)}")
+        rag_service = None
+else:
+    rag_service = None
+
+# Create singleton instance 
 gemini_service = GeminiService()

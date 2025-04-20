@@ -1,0 +1,3 @@
+output_videos/**
+temp_videos/**
+**/*.mp4

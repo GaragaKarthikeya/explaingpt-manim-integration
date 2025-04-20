@@ -1,32 +1,30 @@
+version: '3.8'
 services:
   backend:
     build: .
     ports:
       - "8000:8000"
     volumes:
-      - ./output_videos:/app/output_videos
+      - ./temp_videos:/app/output_videos
+      - ./assets/bgmusic:/app/assets/bgmusic
+      - ./data:/app/data
       - ./.env:/app/.env
     environment:
       - NGROK_BASE_URL=${NGROK_BASE_URL}
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-      - ENABLE_NGROK=false
-      - NGROK_MAX_RETRIES=1
-      - NGROK_RETRY_DELAY=1
+      - ENABLE_NGROK=true
+      - NGROK_MAX_RETRIES=3
+      - NGROK_RETRY_DELAY=3
       - MAX_QUEUE_SIZE=10
       - RATE_LIMIT_PER_MINUTE=5
       - CACHE_EXPIRY_HOURS=24
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - MAX_PARALLEL_RENDERINGS=4
+      - RAG_ENABLED=true
+      - RAG_INDEX_PATH=/app/data/manim_index.faiss
+      - RAG_BLOCKS_PATH=/app/data/manim_blocks.npy
     restart: unless-stopped
-    # Add support for multi-processing by increasing resources
     deploy:
       resources:
         limits:
-          cpus: '0'  # Use all available CPUs
-          memory: 8G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+          memory: 4G
