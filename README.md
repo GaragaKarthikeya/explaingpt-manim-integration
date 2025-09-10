@@ -8,236 +8,338 @@
 
 ## 📝 Description
 
-ExplainGPT-Manim Integration connects the powerful mathematical animation library [Manim](https://www.manim.community/) with the ExplainGPT frontend. This project enables dynamic, visually engaging mathematical and scientific explanations through programmatically generated animations that can be seamlessly delivered through the ExplainGPT interface.
+ExplainGPT-Manim Integration is an AI-powered service that automatically generates mathematical and scientific animations using Google Gemini and the [Manim](https://www.manim.community/) animation library. This project transforms text-based explanations into dynamic visual content through intelligent code generation and automated video rendering.
 
-This integration transforms how complex mathematical concepts are explained by combining:
-- *Visual Learning*: Manim's ability to create clear, elegant mathematical animations
-- *Interactive Explanations*: ExplainGPT's natural language processing and explanation capabilities
-- *Seamless Delivery*: A robust API-driven pipeline that connects these technologies
+Key innovations:
+- **AI-Driven Code Generation**: Uses Google Gemini to create Manim animation code from natural language prompts
+- **Real-Time Animation**: Generates custom animations on-demand via REST API
+- **Educational Focus**: Optimized for mathematical and scientific concept visualization
+- **Production Ready**: Built with FastAPI, includes job queuing, resource management, and error recovery
 
-The result is an educational experience where abstract concepts become concrete through visual representation, helping users build deeper understanding through multiple learning modalities.
+The result is an educational experience where abstract concepts become concrete through visual representation, making complex topics more accessible and engaging.
 
 ## ✨ Key Features
 
-- *Dynamic Animation Generation*: Creates mathematical visualizations based on user queries in real-time
-- *Seamless Frontend Integration*: Designed specifically to work with ExplainGPT's explanation framework
-- *Template System*: Customizable animation templates for common mathematical concepts
-- *Multi-format Support*: Outputs in MP4, GIF, and WebM formats for flexible embedding
-- *Animation Library*: Pre-built collection of common mathematical visualizations
-- *Efficient Processing*: Request queuing system with caching to optimize performance
-- *Containerized Deployment*: Docker-based for simple, consistent deployment
-- *RESTful API*: Well-documented endpoints for straightforward integration
+- **AI-Powered Generation**: Uses Google Gemini to automatically generate Manim code from text prompts
+- **RESTful API**: Clean, documented API endpoints for easy integration with any frontend
+- **Asynchronous Processing**: Job queue system handles multiple animation requests efficiently  
+- **Dynamic Resource Management**: Automatic worker scaling based on system resources and load
+- **Error Recovery**: Built-in error detection, code repair, and retry mechanisms
+- **Production Ready**: FastAPI-based with rate limiting, CORS support, and monitoring endpoints
+- **RAG Integration**: Retrieval Augmented Generation for improved code quality using example database
+- **Ngrok Support**: Automatic tunnel setup for external access during development
+- **Docker Deployment**: Containerized for consistent, easy deployment across environments
 
-## 🐳 Docker Installation (Recommended)
+## 🐳 Quick Start
 
-Docker is the recommended and supported deployment method for this integration. This ensures consistent environments and simplifies the setup process by bundling all dependencies.
+### Prerequisites
+- Docker (recommended) OR Python 3.8+
+- Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
 
-bash
+### Docker Installation (Recommended)
+
+```bash
 # Clone the repository
 git clone https://github.com/GaragaKarthikeya/explaingpt-manim-integration.git
 cd explaingpt-manim-integration
 
-# Build and run the Docker container
-docker build -t explaingpt-manim .
-docker run -p 8000:8000 --env-file .env explaingpt-manim
+# Create environment file
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
 
+# Build and run
+docker-compose up --build
+```
 
-### Environment Configuration
+### Manual Installation
 
-Create an environment file (.env) with your configuration:
+```bash
+# Install system dependencies (Ubuntu/Debian)
+sudo apt install python3 python3-pip ffmpeg texlive-latex-recommended
 
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-# .env file example
-API_KEY=your_secure_api_key
-STORAGE_PATH=/app/storage
-LOG_LEVEL=INFO
-MAX_QUEUE_SIZE=20
-CACHE_ENABLED=true
-CACHE_EXPIRY_SECONDS=86400
+# Install Python dependencies  
+pip install -r requirements.txt
+
+# Run the service
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### Verify Installation
+
+```bash
+# Check health
+curl http://localhost:8000/healthcheck
+
+# Test animation generation
+python test_client.py --prompt "Show a simple circle" --complexity 1
+```
+
+**Full setup instructions**: [Installation Guide](./docs/installation.md)
 
 
 ## 🚀 Usage
 
-### Integration Code Example
+### Using the Test Client
 
-python
-from manim_integration import ExplainGPTAnimator
+```bash
+# Interactive mode
+python test_client.py
 
-# Create an animator instance
-animator = ExplainGPTAnimator(
-    quality="production",  # Options: "draft", "medium", "production"
-    cache_enabled=True,
-    output_format="mp4"    # Options: "mp4", "gif", "webm"
-)
+# Command line mode  
+python test_client.py --prompt "Show how derivatives work" --complexity 2
+```
 
-# Generate an animation from a mathematical concept
-animation = animator.create_animation(
-    concept="derivative of sin(x)",
-    duration=5,
-    resolution="1080p",
-    background_color="#1A1A1A",
-    text_color="#FFFFFF",
-    highlight_color="#3498DB",
-    show_step_by_step=True
-)
+### API Usage
 
-# Get the animation URL to pass to ExplainGPT frontend
-animation_url = animation.get_url()
+```bash
+# Generate animation
+curl -X POST http://localhost:8000/generate \
+     -H "Content-Type: application/json" \
+     -d '{
+       "prompt": "Visualize the Pythagorean theorem",
+       "complexity": 2
+     }'
 
-# Or embed directly in HTML
-embed_code = animation.get_embed_code()
+# Check status  
+curl http://localhost:8000/status/{job_id}
 
+# Download video
+curl -o animation.mp4 http://localhost:8000/video/{job_id}
+```
 
-### Working with Templates
+### JavaScript Integration
 
-The system includes pre-built templates for common mathematical concepts:
+```javascript
+// Generate animation
+const response = await fetch('/generate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    prompt: 'Show how sine and cosine relate',
+    complexity: 2
+  })
+});
 
-python
-# Using a template for limit explanation
-animation = animator.use_template(
-    template_name="limit_visualization",
-    function="x^2",
-    approach_point=3,
-    duration=8
-)
+const { job_id } = await response.json();
 
-# Using a template for derivative visualization
-animation = animator.use_template(
-    template_name="derivative_geometric",
-    function="sin(x)",
-    point=Math.PI/4,
-    show_tangent=True
-)
-
-
-### API Endpoints
-
-The service exposes RESTful endpoints for the ExplainGPT frontend:
-
-#### Generate Animation
-http
-POST /api/generate-animation
-Content-Type: application/json
-
-{
-  "concept": "integration by parts",
-  "duration": 8,
-  "resolution": "1080p",
-  "format": "mp4",
-  "show_steps": true,
-  "colors": {
-    "background": "#1A1A1A",
-    "text": "#FFFFFF",
-    "highlight": "#E74C3C"
+// Poll for completion
+const checkStatus = async () => {
+  const status = await fetch(`/status/${job_id}`).then(r => r.json());
+  if (status.success) {
+    // Display video at status.video_url
+    document.getElementById('video').src = status.video_url;
+  } else if (!status.error) {
+    setTimeout(checkStatus, 2000); // Check again in 2s
   }
-}
+};
+checkStatus();
+```
 
-
-#### Other Key Endpoints
-- GET /api/animations/{animation_id} - Retrieves a specific animation
-- GET /api/templates - Lists all available animation templates with parameters
-- POST /api/custom-scene - Creates an animation from a custom scene definition
-- GET /api/status/{job_id} - Checks the rendering status of a submitted job
-- POST /api/feedback - Submits user feedback on an animation
+**Complete usage examples**: [API Examples](./docs/api-examples.md)
 
 ## 🔄 How It Works
 
-1. *Request Initiation*: ExplainGPT identifies a concept that would benefit from visual explanation
-2. *Animation Request*: The frontend sends an API request specifying the concept and parameters
-3. *Template Selection*: The system selects the appropriate animation template based on the concept
-4. *Parameter Customization*: The template is populated with specific parameters for the request
-5. *Manim Scene Creation*: A Manim scene is programmatically constructed with the required elements
-6. *Rendering*: The scene is rendered into the requested format (MP4, GIF, WebM)
-7. *Delivery*: The rendered animation is made available via URL or direct embedding
-8. *Display*: ExplainGPT presents the animation alongside textual explanation
+1. **Request Processing**: Client submits animation prompt via REST API
+2. **Job Queue**: Request is queued and assigned a unique job ID  
+3. **AI Code Generation**: Google Gemini generates Manim code based on the prompt
+4. **Code Enhancement**: RAG system retrieves relevant examples to improve code quality
+5. **Error Recovery**: Built-in systems detect and fix common code issues
+6. **Animation Rendering**: Manim renders the code into MP4 video
+7. **Resource Management**: Dynamic worker scaling based on system load
+8. **Delivery**: Video URL returned to client for embedding or download
 
-This workflow allows for seamless integration of visual explanations within the conversational flow of ExplainGPT, enhancing user understanding through multiple learning modalities.
+```
+Client Request → Queue → AI Generation → Code Enhancement → Rendering → Video URL
+     ↓              ↓         ↓              ↓              ↓           ↓
+Rate Limiting → Job Tracking → RAG Context → Error Recovery → Resource → Caching
+                                                              Scaling
+```
 
-## ⚙ Configuration Options
+This architecture ensures reliable, scalable animation generation with robust error handling and optimal resource utilization.
 
-The integration can be configured through environment variables or a configuration file:
+## ⚙️ Configuration
 
-yaml
-# config.yaml
-rendering:
-  quality: production  # draft, medium, production
-  fps: 60
-  resolution: 1080p
-  cache_enabled: true
-  cache_expiry: 604800  # 7 days in seconds
+### Essential Settings
 
-api:
-  host: 0.0.0.0
-  port: 8000
-  rate_limit: 100  # requests per minute
-  max_queue_size: 50
+```bash
+# Required - Get from https://makersuite.google.com/app/apikey
+GEMINI_API_KEY="your_gemini_api_key"
 
-storage:
-  type: s3  # local, s3, azure
-  s3_bucket: animations-bucket
-  s3_region: us-west-2
-  local_path: /app/storage/animations
-  
-manim:
-  custom_directories:
-    - /app/templates
-    - /app/custom_scenes
-  plugins:
-    - manim_voiceover
+# Basic Configuration  
+PORT=8000
+MAX_PARALLEL_RENDERINGS=2
+MIN_MEMORY_PER_WORKER_MB=2048
+
+# Optional - Ngrok for external access
+ENABLE_NGROK=true
+NGROK_AUTHTOKEN="your_ngrok_token"
+```
+
+### Performance Tuning
+
+```bash
+# Resource Management
+MAX_MEMORY_PERCENT=80
+ENABLE_DYNAMIC_SCALING=true
+HIGH_LOAD_THRESHOLD=0.8
+LOW_LOAD_THRESHOLD=0.3
+
+# Rate Limiting
+RATE_LIMIT_PER_MINUTE=5
+MAX_QUEUE_SIZE=10
+
+# RAG (Retrieval Augmented Generation)
+RAG_ENABLED=true
+RAG_MIN_SCORE=0.5
+RAG_MAX_EXAMPLES=3
+```
+
+**Complete configuration reference**: [Configuration Guide](./docs/configuration-reference.md)
 
 
-## 📊 Supported Mathematical Concepts
+## 📊 Supported Animation Types
 
-The integration currently supports animations for:
+The service can generate animations for various mathematical and scientific concepts:
 
-| Category | Supported Concepts |
-|----------|-------------------|
-| Calculus | Limits, Derivatives, Integrals, Series |
-| Linear Algebra | Vectors, Matrices, Transformations, Eigenvalues |
-| Probability | Distributions, Random Variables, Bayes' Theorem |
-| Geometry | Shapes, Transformations, Projections |
-| Statistics | Data Visualization, Regression, Hypothesis Testing |
+### Mathematics
+- **Calculus**: Derivatives, integrals, limits, series expansions
+- **Algebra**: Function transformations, equation solving, polynomial graphs  
+- **Geometry**: Shape properties, transformations, proofs
+- **Linear Algebra**: Vector operations, matrix transformations, eigenvalues
 
-Each concept has customizable parameters to tailor the explanation to the specific context.
+### Physics & Science  
+- **Mechanics**: Motion, forces, energy, momentum
+- **Waves**: Oscillations, interference, wave propagation
+- **Electromagnetism**: Fields, circuits, electromagnetic waves
+
+### Computer Science
+- **Algorithms**: Sorting, searching, graph traversal
+- **Data Structures**: Trees, graphs, hash tables
+- **Machine Learning**: Neural networks, optimization
+
+### Statistics & Data
+- **Probability**: Distributions, random variables, Bayes' theorem
+- **Data Visualization**: Charts, regression, correlation
+- **Statistical Inference**: Hypothesis testing, confidence intervals
+
+**Animation examples**: [API Examples](./docs/api-examples.md)
 
 ## 📚 Documentation
 
-For detailed documentation, refer to the [docs](./docs) directory:
+Comprehensive documentation is available in the [docs](./docs) directory:
 
-- [API Reference](./docs/api-reference.md): Complete API documentation
-- [Animation Templates](./docs/templates.md): Available templates and parameters
-- [Integration Guide](./docs/integration-guide.md): How to integrate with ExplainGPT
-- [Configuration Guide](./docs/configuration.md): All configuration options
-- [Troubleshooting](./docs/troubleshooting.md): Common issues and solutions
+### Getting Started
+- [Installation Guide](./docs/installation.md) - Complete setup instructions
+- [Quick Start Guide](./docs/quick-start.md) - Get running in 5 minutes  
+- [Configuration Reference](./docs/configuration-reference.md) - All configuration options
 
-## 🔍 Performance Optimization
+### API and Integration  
+- [API Reference](./docs/api-reference.md) - Complete REST API documentation
+- [Integration Guide](./docs/integration-guide.md) - Frontend integration examples
+- [API Examples](./docs/api-examples.md) - Practical usage examples
 
-For optimal performance:
-- Enable caching to reuse commonly requested animations
-- Configure appropriate queue sizes based on your traffic patterns
-- Use the template system instead of custom scenes when possible
-- Monitor API usage and adjust rate limits accordingly
-- Consider horizontal scaling for high-traffic deployments
+### Advanced Topics
+- [Architecture Overview](./docs/architecture.md) - System design and components
+- [Resource Management](./docs/resource-management.md) - Scaling and optimization
+- [RAG Integration](./docs/rag-integration.md) - AI enhancement features
+- [Error Recovery](./docs/error-recovery.md) - Fault tolerance mechanisms
+
+### Operations
+- [Production Deployment](./docs/production-deployment.md) - Production setup guide
+- [Monitoring](./docs/monitoring.md) - Observability and alerting
+- [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
+- [FAQ](./docs/faq.md) - Frequently asked questions
+
+### Development
+- [Development Setup](./docs/development-setup.md) - Local development guide  
+- [Contributing](./docs/contributing.md) - How to contribute
+- [Testing](./docs/testing.md) - Testing strategies
+
+## 🔍 System Monitoring
+
+The service provides built-in monitoring endpoints for production use:
+
+### Health and Status
+```bash
+# Service health
+curl http://localhost:8000/healthcheck
+
+# System resources  
+curl http://localhost:8000/system/resources
+
+# Job performance metrics
+curl http://localhost:8000/system/jobs/performance
+```
+
+### Key Metrics
+- **Resource Usage**: CPU, memory, worker utilization
+- **Job Statistics**: Queue depth, completion rates, processing times
+- **Error Tracking**: Failed jobs, error rates, recovery attempts
+- **Performance**: Animation generation times by complexity level
+
+### Resource Management
+- **Dynamic Scaling**: Automatic worker adjustment based on system load
+- **Memory Protection**: Prevents system overload with configurable limits  
+- **Queue Management**: Handles burst traffic with job queuing
+- **Error Recovery**: Automatic retry and code repair mechanisms
+
+**Complete monitoring guide**: [Monitoring Documentation](./docs/monitoring.md)
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
+We welcome contributions! Here's how you can help:
 
+### Areas of Interest
+- **New Animation Types**: Add support for additional mathematical concepts
+- **Performance Improvements**: Optimize rendering speed and resource usage
+- **AI Enhancement**: Improve prompt engineering and code generation quality
+- **Integration Examples**: Add examples for new frameworks and platforms
+- **Documentation**: Help improve and expand documentation
+
+### How to Contribute
 1. Fork the repository
-2. Create your feature branch (git checkout -b feature/amazing-feature)
-3. Commit your changes (git commit -m 'Add some amazing feature')
-4. Push to the branch (git push origin feature/amazing-feature)
-5. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Commit your changes (`git commit -m 'Add some amazing feature'`)  
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
-Areas we're particularly interested in:
-- New animation templates for mathematical concepts
-- Performance improvements
-- Enhanced integration capabilities
-- Documentation improvements
+### Development Setup
+```bash
+# Clone your fork
+git clone https://github.com/yourusername/explaingpt-manim-integration.git
+cd explaingpt-manim-integration
+
+# Set up development environment
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run tests
+python -m pytest
+
+# Start development server
+uvicorn app.main:app --reload
+```
+
+**Detailed contribution guide**: [Contributing Documentation](./docs/contributing.md)
 
 ## 📝 Changelog
 
-See the [CHANGELOG.md](CHANGELOG.md) file for details on version history and updates.
+### Version 1.0.0 (Current)
+- Initial release with Google Gemini integration
+- FastAPI-based REST API with async job processing
+- Dynamic resource management and worker scaling
+- RAG-enhanced code generation for improved quality
+- Built-in error recovery and retry mechanisms  
+- Docker deployment with ngrok support
+- Comprehensive monitoring and observability
+
+**Full version history**: [Changelog](./docs/changelog.md)
 
 ## 📄 License
 
@@ -245,16 +347,22 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgements
 
-- [Manim Community](https://www.manim.community/) for the amazing animation engine
-- ExplainGPT team for the frontend integration support
-- All contributors who have helped shape this project
+- [Manim Community](https://www.manim.community/) for the incredible animation library
+- [Google AI](https://ai.google.dev/) for the Gemini API enabling intelligent code generation  
+- [FastAPI](https://fastapi.tiangolo.com/) for the excellent web framework
+- All contributors who help improve this project
+- The open source community for inspiration and support
 
-## 📞 Contact
+## 📞 Contact & Support
 
-Karthikeya Garaga - [@GaragaKarthikeya](https://github.com/GaragaKarthikeya)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/GaragaKarthikeya/explaingpt-manim-integration/issues)
+- **Documentation**: Check the [docs](./docs) directory for detailed guides
+- **Author**: Karthikeya Garaga - [@GaragaKarthikeya](https://github.com/GaragaKarthikeya)
 
 Project Link: [https://github.com/GaragaKarthikeya/explaingpt-manim-integration](https://github.com/GaragaKarthikeya/explaingpt-manim-integration)
 
 ---
-Last updated: 2025-04-19
-```
+
+**Made with ❤️ for mathematical education and visual learning**
+
+*Last updated: 2024-12-19*
